@@ -26,10 +26,8 @@ export function sha1Hex(data: Buffer): string {
 
 /** git's object id: SHA-1 over `<type> <size>\0` + the object's bytes. */
 export function hashObject(type: GitObjectType, data: Buffer): string {
-  const hash = createHash('sha1');
-  hash.update(Buffer.from(`${type} ${data.length}\0`, 'utf8'));
-  hash.update(data);
-  return hash.digest('hex');
+  // Feed the header as a string: no throwaway Buffer allocation per hashed object.
+  return createHash('sha1').update(`${type} ${data.length}\0`, 'utf8').update(data).digest('hex');
 }
 
 export function isOid(value: string): boolean {
@@ -477,7 +475,9 @@ export function writePack(objects: readonly GitObject[]): Buffer {
   parts.push(header);
   for (const object of objects) {
     parts.push(writePackObjectHeader(object.type, object.data.length));
-    parts.push(deflateSync(object.data));
+    // Fastest compression level: the bytes stay valid zlib (the client inflates and
+    // checksums them the same way); only the size changes, and these packs are small.
+    parts.push(deflateSync(object.data, { level: 1 }));
   }
   const body = Buffer.concat(parts);
   return Buffer.concat([body, createHash('sha1').update(body).digest()]);

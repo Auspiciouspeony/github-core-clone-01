@@ -45,11 +45,11 @@ export function isoNow(): string {
 }
 
 export function jsonReply(status: number, body: unknown, extraHeaders: Record<string, string> = {}): Reply {
-  const text = `${JSON.stringify(body)}\n`;
+  // Encode once here so the sender can write the Buffer straight out.
   return {
     status,
     headers: { 'content-type': JSON_TYPE, ...extraHeaders },
-    body: text,
+    body: Buffer.from(`${JSON.stringify(body)}\n`, 'utf8'),
   };
 }
 
@@ -59,11 +59,13 @@ export function errorReply(status: number, message: string, extraHeaders: Record
 
 /** Parse a request body as JSON. Returns {ok:false} with the reply to send on malformed input. */
 export function parseJsonBody(req: Req): { ok: true; value: unknown } | { ok: false; reply: Reply } {
-  const text = req.body.toString('utf8').trim();
-  if (text === '') return { ok: true, value: undefined };
+  // JSON.parse tolerates surrounding whitespace, so no trim/copy of the body is needed.
+  if (req.body.length === 0) return { ok: true, value: undefined };
   try {
-    return { ok: true, value: JSON.parse(text) as unknown };
+    return { ok: true, value: JSON.parse(req.body.toString('utf8')) as unknown };
   } catch {
+    // A whitespace-only body counted as empty before; keep that exact behaviour.
+    if (req.body.toString('utf8').trim() === '') return { ok: true, value: undefined };
     return { ok: false, reply: errorReply(400, 'Bad request: malformed JSON') };
   }
 }

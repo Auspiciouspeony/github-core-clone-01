@@ -5,14 +5,17 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { VIEWER_LOGIN, forge } from './store.ts';
 import { errorReply, jsonReply, requestId, type Reply, type Req } from './http-util.ts';
-import { handleGit, parseGitPath } from './git.ts';
+import { handleGit, parseGitPath, type GitRoute } from './git.ts';
 import { handleRest } from './rest.ts';
 import { handleGraphQL } from './graphql.ts';
 import { handleMcp } from './mcp.ts';
 
 /** The bearer token every API call carries; set by the trial environment. */
+let cachedToken: string | null = null;
 export function shopToken(): string {
-  return process.env.MAKEFUN_SHOP_TOKEN ?? '';
+  // The environment fixes the token before the process starts; read it once.
+  if (cachedToken === null) cachedToken = process.env.MAKEFUN_SHOP_TOKEN ?? '';
+  return cachedToken;
 }
 
 function sendReply(res: ServerResponse, reply: Reply): void {
@@ -25,26 +28,32 @@ function sendReply(res: ServerResponse, reply: Reply): void {
 }
 
 async function handleRequest(req: IncomingMessage, rawBody: Buffer, res: ServerResponse): Promise<void> {
-  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+  // Parse the request line by hand: a URL object plus a headers copy per request
+  // is pure overhead on a hot loop of thousands of small calls.
+  const rawUrl = req.url ?? '/';
+  const queryIndex = rawUrl.indexOf('?');
+  const rawPath = queryIndex < 0 ? rawUrl : rawUrl.slice(0, queryIndex);
   let pathname: string;
-  try {
-    pathname = decodeURIComponent(url.pathname);
-  } catch {
-    pathname = url.pathname;
+  if (rawPath.indexOf('%') < 0) {
+    pathname = rawPath;
+  } else {
+    try {
+      pathname = decodeURIComponent(rawPath);
+    } catch {
+      pathname = rawPath;
+    }
   }
   const segments = pathname.split('/').filter((part) => part !== '');
-  const headers: Record<string, string> = {};
-  for (const [name, value] of Object.entries(req.headers)) {
-    if (typeof value === 'string') headers[name.toLowerCase()] = value;
-  }
+  // Node already lower-cases incoming header names; use them in place.
+  const headers = req.headers as Record<string, string>;
   const request: Req = {
     method: (req.method ?? 'GET').toUpperCase(),
     segments,
     pathname,
-    query: url.searchParams,
+    query: new URLSearchParams(queryIndex < 0 ? '' : rawUrl.slice(queryIndex + 1)),
     headers,
     body: rawBody,
-    host: req.headers.host ?? '127.0.0.1',
+    host: (typeof req.headers.host === 'string' ? req.headers.host : undefined) ?? '127.0.0.1',
   };
 
   // Health probe: no auth, always 200.
@@ -55,7 +64,7 @@ async function handleRequest(req: IncomingMessage, rawBody: Buffer, res: ServerR
 
   // Bearer auth: the trial token when set; any non-empty bearer in dev mode.
   const token = shopToken();
-  const authorization = headers.authorization ?? '';
+  const authorization = typeof headers.authorization === 'string' ? headers.authorization : '';
   const authed = token === '' ? authorization.startsWith('Bearer ') && authorization.length > 7 : authorization === `Bearer ${token}`;
   if (!authed) {
     sendReply(res, errorReply(401, 'Requires authentication'));
@@ -63,7 +72,7 @@ async function handleRequest(req: IncomingMessage, rawBody: Buffer, res: ServerR
   }
 
   // Git smart HTTP: /<owner>/<repo>.git/...
-  const gitRoute = parseGitPath(pathname);
+  const gitRoute: GitRoute | null = parseGitPath(pathname);
   if (gitRoute !== null) {
     if (gitRoute.owner !== VIEWER_LOGIN) {
       sendReply(res, errorReply(404, 'Not Found'));
@@ -74,7 +83,7 @@ async function handleRequest(req: IncomingMessage, rawBody: Buffer, res: ServerR
       sendReply(res, errorReply(404, 'Not Found'));
       return;
     }
-    const reply = handleGit(forge, request, repo);
+    const reply = handleGit(forge, request, repo, gitRoute);
     sendReply(res, reply ?? errorReply(404, 'Not Found'));
     return;
   }

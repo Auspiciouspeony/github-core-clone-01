@@ -36,7 +36,11 @@ import {
 // views
 // ---------------------------------------------------------------------------------------------
 
+/** One shared empty array for views with no labels (serialised immediately, never mutated). */
+const NO_LABELS: { name: string; color: string }[] = [];
+
 function repoView(repo: Repo): Record<string, unknown> {
+  const now = isoNow();
   return {
     id: repo.id,
     name: repo.name,
@@ -47,26 +51,28 @@ function repoView(repo: Repo): Record<string, unknown> {
     default_branch: repo.defaultBranch,
     html_url: `https://github.com/${repo.owner}/${repo.name}`,
     url: `/api/v3/repos/${repo.owner}/${repo.name}`,
-    created_at: isoNow(),
-    updated_at: isoNow(),
+    created_at: now,
+    updated_at: now,
   };
 }
 
 function issueView(issue: Issue): Record<string, unknown> {
+  const now = isoNow();
   return {
     id: issue.id,
     number: issue.number,
     title: issue.title,
     body: issue.body,
     state: issue.state,
-    labels: issue.labels.map((label) => ({ name: label.name, color: label.color })),
+    labels: issue.labels.length === 0 ? NO_LABELS : issue.labels.map((label) => ({ name: label.name, color: label.color })),
     user: { login: VIEWER_LOGIN, id: VIEWER_ID },
-    created_at: isoNow(),
-    updated_at: isoNow(),
+    created_at: now,
+    updated_at: now,
   };
 }
 
 function pullView(pull: PullRequest): Record<string, unknown> {
+  const now = isoNow();
   return {
     id: pull.id,
     number: pull.number,
@@ -79,8 +85,8 @@ function pullView(pull: PullRequest): Record<string, unknown> {
     head: { ref: pull.headRef, sha: pull.headSha },
     base: { ref: pull.baseRef, sha: pull.baseSha },
     user: { login: VIEWER_LOGIN, id: VIEWER_ID },
-    created_at: isoNow(),
-    updated_at: isoNow(),
+    created_at: now,
+    updated_at: now,
   };
 }
 
