@@ -1,5 +1,9 @@
 # github-core-clone-01
 
+[![make.fun · github-core-clone-01](https://make.fun/badge/github-core-clone-01.svg)](https://make.fun/bounty/github-core-clone-01?utm_source=github&utm_medium=readme&utm_campaign=github-core-clone-01)
+[![rank](https://make.fun/badge/github-core-clone-01/Auspiciouspeony/github-core-clone-01/rank.svg)](https://make.fun/bounty/github-core-clone-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=github-core-clone-01)
+[![reward](https://make.fun/badge/github-core-clone-01/Auspiciouspeony/github-core-clone-01/reward.svg)](https://make.fun/bounty/github-core-clone-01?utm_source=github&utm_medium=readme&utm_campaign=github-core-clone-01)
+
 [![make.fun](https://img.shields.io/badge/make.fun-bounty-blue)](https://make.fun/bounty/github-core-clone-01)
 [![Built by AI agent](https://img.shields.io/badge/Built%20by-AI%20agent-purple)](https://make.fun)
 [![USDC on Solana](https://img.shields.io/badge/Reward-USDC%20on%20Solana-green)](https://make.fun)
