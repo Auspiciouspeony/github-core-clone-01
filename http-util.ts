@@ -2,13 +2,54 @@
 
 import { randomBytes } from 'node:crypto';
 
+/**
+ * A query string parsed lazily, on first get(). The hot paths (read, push,
+ * clone) carry no query string at all, so building a URLSearchParams per
+ * request is pure overhead; list endpoints parse only when they ask.
+ * get() matches URLSearchParams.get for the simple values this forge reads
+ * (percent-decoding, '+' as a space), first value wins on duplicates.
+ */
+export class LazyQuery {
+  private readonly raw: string;
+  private parsed: Map<string, string> | null = null;
+
+  constructor(raw: string) {
+    this.raw = raw;
+  }
+
+  get(name: string): string | null {
+    if (this.parsed === null) {
+      this.parsed = new Map<string, string>();
+      if (this.raw !== '') {
+        for (const pair of this.raw.split('&')) {
+          if (pair === '') continue;
+          const eq = pair.indexOf('=');
+          const key = decode(pair.slice(0, eq < 0 ? pair.length : eq));
+          if (!this.parsed.has(key)) {
+            this.parsed.set(key, eq < 0 ? '' : decode(pair.slice(eq + 1)));
+          }
+        }
+      }
+    }
+    return this.parsed.get(name) ?? null;
+  }
+}
+
+function decode(text: string): string {
+  try {
+    return decodeURIComponent(text.replace(/\+/g, ' '));
+  } catch {
+    return text;
+  }
+}
+
 export interface Req {
   method: string;
   /** Decoded pathname segments, e.g. ['api','v3','repos','adaiversen','x']. */
   segments: string[];
   /** The raw pathname (decoded, leading slash). */
   pathname: string;
-  query: URLSearchParams;
+  query: LazyQuery;
   headers: Record<string, string>; // lower-cased names
   body: Buffer;
   host: string;
